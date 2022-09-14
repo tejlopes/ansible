@@ -1,0 +1,26 @@
+plugin: aws_ec2
+regions:
+  - "us-east-1"
+  - "sa-east-1"
+include_filters:
+- tag:User:
+  - 'admin'
+exclude_filters:
+- tag:Name:
+  - "jiraya-cluster*"
+  - "recruta-cluster*"
+  - "bigdata-cluster*"
+  - "kakarotto-cluster*"
+strict: False
+keyed_groups:
+  - prefix: "key"
+    key: "key_name"
+    parent_group: ""
+hostnames:
+  - private-ip-address
+  - dns-name
+  - tag:Name
+  - ip-address
+compose:
+  ansible_host: private_ip_address
+  ansible_user: "'admin'"

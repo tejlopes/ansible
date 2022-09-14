@@ -1,0 +1,102 @@
+---
+# tasks file for cassandra
+
+- name: Instalar pacotes comuns
+  include_role:
+    name: common
+    tasks_from: main
+
+- name: Incluir variáveis do Cassandra
+  include_vars:
+    file: cassandra_vars.yml
+
+- name: Valida se o repositório existe
+  stat:
+    path: /etc/apt/sources.list.d/cassandra.sources.list
+  register: cassandra_repository
+
+- name: Adiciona repositorio do cassandra
+  shell: echo "deb https://downloads.apache.org/cassandra/debian 311x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+  when: not cassandra_repository.stat.exists
+  register: add_repository
+
+- name: Autentica o pacote do cassandra
+  shell: curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
+  when: add_repository.changed
+
+- name: Atualiza os repositórios
+  apt:
+    update_cache: yes
+  become: true
+
+- name: Instala o cassandra
+  apt:
+    name: cassandra
+  become: true
+  register: instala_cassandra
+
+- name: Para o servico do cassandra, se iniciado
+  service:
+    name: cassandra
+    state: stopped
+  become: true
+  when: instala_cassandra.changed
+
+- name: Get availability zone
+  command: curl http://169.254.169.254/latest/meta-data/placement/availability-zone
+  register: availability_zone
+
+- name: Copia o arquivo de configuração do rack
+  template:
+    src: cassandra_rackdc_properties.j2
+    dest: "/etc/cassandra/cassandra-rackdc.properties"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: copia_arquivo_rack
+
+- name: Copia o arquivo de configuração do cassandra
+  template:
+    src: cassandra_file_config.j2
+    dest: "/etc/cassandra/cassandra.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: copia_arquivo_config
+
+- name: Copia o arquivo de env do cassandra
+  template:
+    src: cassandra-env_file.j2
+    dest: "/etc/cassandra/cassandra-env.sh"
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+  register: copia_arquivo_env
+
+- name: Apaga o data default que a instalação do cassandra cria
+  file:
+    path: "{{ data_file_directories }}/system"
+    state: absent
+  become: true
+  when: instala_cassandra.changed
+
+- name: Recria a pasta system zerada
+  file:
+    path: "{{ data_file_directories }}/system"
+    state: directory
+    owner: cassandra
+    group: cassandra
+    mode: '755'
+  become: true
+  when: instala_cassandra.changed
+
+- name: Reinicia o serviço do Cassandra caso seja necessário
+  service:
+    name: cassandra
+    state: restarted
+    enabled: yes
+  become: true
+  when: copia_arquivo_config.changed or copia_arquivo_env.changed or copia_arquivo_rack.changed

@@ -1,0 +1,7 @@
+---
+# Cassandra installation
+
+- hosts: cassandra
+  serial: 1
+  roles:
+    - cassandra

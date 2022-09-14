@@ -1,0 +1,6 @@
+---
+# Variáveis para o template de configuração do cloudwatch-agent
+
+url_download_cloudwatch_agent_centos: "https://s3.us-east-1.amazonaws.com/amazoncloudwatch-agent-us-east-1/centos/amd64/latest/amazon-cloudwatch-agent.rpm"
+url_download_cloudwatch_agent_debian: "https://s3.us-east-1.amazonaws.com/amazoncloudwatch-agent-us-east-1/debian/amd64/latest/amazon-cloudwatch-agent.deb"
+path_cloudwatch_agent: "/opt/aws/amazon-cloudwatch-agent"

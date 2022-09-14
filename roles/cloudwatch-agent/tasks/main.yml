@@ -1,0 +1,89 @@
+---
+- name: Incluir variáveis do cloudwatch-agent
+  include_vars:
+    file: ../vars/cloudwatch-agent_vars.yml
+
+- name: Valida se o cloudwatch-agent está instalado
+  stat:
+    path: "{{ path_cloudwatch_agent }}"
+  register: cloudwatch_dir
+
+- name: Instala o serviço cloudwatch-agent em amazon-linux, se necessário
+  yum:
+    name: amazon-cloudwatch-agent
+    state: present
+  when: (ansible_distribution == 'Amazon') and not cloudwatch_dir.stat.exists
+  become: true
+  register: service_cloudwatch_agent_amazon_installed
+
+- name: Baixa arquivo para instalação do cloudwatch-agent em centos, se necessário
+  get_url: url={{ url_download_cloudwatch_agent_centos }} dest=/tmp/amazon-cloudwatch-agent.rpm
+  when: (ansible_distribution == 'CentOS') and not cloudwatch_dir.stat.exists
+
+- name: Instala o serviço cloudwatch-agent em centos a partir do rpm baixado, se necessário
+  yum:
+    name: /tmp/amazon-cloudwatch-agent.rpm
+    state: present
+  when: (ansible_distribution == 'CentOS') and not cloudwatch_dir.stat.exists
+  become: true
+  register: service_cloudwatch_agent_centos_installed
+
+- name: Baixa arquivo para instalação do cloudwatch-agent em debian, se necessário
+  get_url: url={{ url_download_cloudwatch_agent_debian }} dest=/tmp/amazon-cloudwatch-agent.deb
+  when: (ansible_os_family == 'Debian') and not cloudwatch_dir.stat.exists
+
+- name: Instala o serviço cloudwatch-agent em debian a partir do deb baixado, se necessário
+  apt: deb="/tmp/amazon-cloudwatch-agent.deb"
+  when: (ansible_os_family == 'Debian') and not cloudwatch_dir.stat.exists
+  become: true
+  register: service_cloudwatch_agent_debian_installed
+
+- name: Copia o arquivo de métricas para bin/config.json
+  template:
+    src: ../templates/amazon_cloudwatch_agent_json.j2
+    dest: "{{ path_cloudwatch_agent }}/bin/config.json"
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  register: bin_amazon_cloudwatch_agent_json
+
+- name: Copia o arquivo toml para etc/amazon-cloudwatch-agent.toml
+  template:
+    src: ../templates/amazon_cloudwatch_agent_toml.j2
+    dest: "{{ path_cloudwatch_agent }}/etc/amazon-cloudwatch-agent.toml"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: etc_amazon_cloudwatch_agent_toml
+
+- name: Inicia o cloudwatch-agent pela primeira vez, se necessário
+  shell: "{{ path_cloudwatch_agent }}/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:{{ path_cloudwatch_agent }}/bin/config.json"
+  when: not cloudwatch_dir.stat.exists and (service_cloudwatch_agent_amazon_installed.changed or service_cloudwatch_agent_centos_installed.changed or service_cloudwatch_agent_debian_installed.changed)
+  become: true
+  register: start_first_time
+
+- name: Habilita o serviço para subir no boot.
+  service:
+    name: amazon-cloudwatch-agent
+    enabled: yes
+  become: true
+
+- name: Copia o arquivo de métricas para etc/amazon-cloudwatch-agent.json
+  template:
+    src: ../templates/amazon_cloudwatch_agent_json.j2
+    dest: "{{ path_cloudwatch_agent }}/etc/amazon-cloudwatch-agent.json"
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  register: etc_amazon_cloudwatch_agent_json
+
+- name: Reinicia o serviço do cloudwatch-agent, se necessário
+  service:
+    name: amazon-cloudwatch-agent
+    state: restarted
+    enabled: yes
+  become: true
+  when: cloudwatch_dir.stat.exists and (bin_amazon_cloudwatch_agent_json.changed or etc_amazon_cloudwatch_agent_toml.changed) or etc_amazon_cloudwatch_agent_json.changed

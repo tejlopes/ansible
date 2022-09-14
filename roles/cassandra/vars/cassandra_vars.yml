@@ -1,0 +1,15 @@
+---
+# Variáveis para o template de configuração do cassandra
+
+# cluster_name: "cassandra_stg"
+private_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+num_tokens: "256"
+authenticator: "PasswordAuthenticator"
+data_home: "/var/lib/cassandra"
+data_file_directories: "{{ data_home }}/data"
+commitlog_directory: "{{ data_home }}/commitlog"
+saved_caches_directory: "{{ data_home }}/saved_caches"
+seeds: "{{ ansible_play_hosts_all[0] }}"
+endpoint_snitch: "GossipingPropertyFileSnitch"
+listen_address: "{{ private_ip }}"
+rpc_address: "{{ private_ip }}"

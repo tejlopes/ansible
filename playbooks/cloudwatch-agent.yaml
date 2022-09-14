@@ -1,0 +1,29 @@
+---
+# cloudwatch-agent installation
+
+- hosts:
+  - key_lopesdata
+  - key_lopespublic
+  - key_lopesplatform
+  roles:
+  - cloudwatch-agent
+  tasks:
+    - name: Pega o ec2 instance-id
+      shell: "wget -q -O - http://169.254.169.254/latest/meta-data/instance-id"
+      register: ec2_instance
+
+    - name: Pega o ec2 region
+      shell: "curl http://169.254.169.254/latest/meta-data/placement/region"
+      register: region
+
+    - name: Valida se existe iam-instance-profile atachado
+      connection: local
+      shell: 
+        cmd: aws --region {{ region.stdout_lines[0] }} ec2 describe-iam-instance-profile-associations --filters Name=instance-id,Values={{ ec2_instance.stdout_lines[0] }} | jq '.IamInstanceProfileAssociations[].State' | sed 's/"//g'
+      register: iam_instance_profile
+
+    - name: Atacha iam-instance-profile na instância, se necessário.
+      connection: local
+      shell: 
+        cmd: aws --region {{ region.stdout_lines[0] }} ec2 associate-iam-instance-profile --instance-id {{ ec2_instance.stdout_lines[0] }} --iam-instance-profile Name=aws-all-servers
+      when: iam_instance_profile.stdout != "associated"
